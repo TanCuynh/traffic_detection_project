@@ -207,3 +207,25 @@ def get_car(license_plate, vehicle_track_ids):
         return vehicle_track_ids[car_indx]
 
     return -1, -1, -1, -1, -1
+
+
+def prioritize_outermost_largest(detections):
+        result = []
+
+        # Sort detections by area in descending order
+        detections.sort(key=lambda x: (x[2] - x[0]) * (x[3] - x[1]), reverse=True)
+
+        while detections:
+            current_detection = detections.pop(0)
+            x1, y1, x2, y2, _, _ = current_detection
+
+            # Check if the current detection is not fully contained by any remaining detections
+            is_outermost = all(
+                x1 >= other_x2 or x2 <= other_x1 or y1 >= other_y2 or y2 <= other_y1
+                for (other_x1, other_y1, other_x2, other_y2, _, _) in detections
+            )
+
+            if is_outermost:
+                result.append(current_detection)
+
+        return result
