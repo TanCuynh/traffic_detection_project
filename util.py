@@ -79,10 +79,10 @@ def license_complies_format(text):
                 or text[7] in dict_char_to_int.keys()
             )
         ):
-            print("T >>>>")
+            # print("T >>>>")
             return True
         else:
-            print("F >>>>")
+            # print("F >>>>")
             return False
     elif len(text) == 9:
         if (
@@ -179,12 +179,9 @@ def read_license_plate(license_plate_crop):
     for detection in detections:
         bbox, text, score = detection
         text = text.upper().replace(" ", "")
-        # formatted_license_plate = format_license(text)
-        # full_license_plate += formatted_license_plate
         text_license_plate += text
 
     full_license_plate = filter_characters(text_license_plate)
-    # print(full_license_plate)
     if license_complies_format(full_license_plate):
         return format_license(full_license_plate), score
 
