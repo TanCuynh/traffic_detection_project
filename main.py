@@ -19,21 +19,18 @@ torch.cuda.set_device(0)
 current_gpu = torch.cuda.current_device()
 print(f"Using GPU-{current_gpu}")
 
-
-# Thiết lập codec cho VideoWriter
 fourcc = cv2.VideoWriter_fourcc(*"H264")
 
-# Load models
 vehicle_detector = YOLO("./models/vehicle_detector.pt").to("cuda")
 license_plate_detector = YOLO("./models/license_plate_detector.pt").to("cuda")
 
-# Setting Lines and Variables
-PINK_LINE = [(440, 840), (1920, 840)]
-YELLOW_LINE = [(430, 860), (1920, 860)]
+# Xác định biến và đường xác định tốc độ
+PINK_LINE = [(520, 600), (1920, 600)]
+YELLOW_LINE = [(470, 750), (1920, 750)]
 ORANGE_LINE = [(420, 900), (1920, 900)]
 
 PREV_LINE = [(650, 150), (1920, 150)]
-PASS_LINE = [(600, 840), (1920, 840)]
+PASS_LINE = [(600, 600), (1920, 600)]
 
 cross_pink_line = {}
 cross_yellow_line = {}
@@ -41,12 +38,10 @@ cross_orange_line = {}
 
 avg_speeds = {}
 
-VIDEO_FPS = 88
-FACTOR_KM = 3.6
-LATENCY_FPS = 75
+kmh_to_ms_const = 3.6
+pixel_to_meter_const = 0.1
 
 
-# Euclidean Distance Function
 def euclidean_distance(point1: tuple, point2: tuple):
     x1, y1 = point1
     x2, y2 = point2
@@ -54,7 +49,6 @@ def euclidean_distance(point1: tuple, point2: tuple):
     return distance
 
 
-# Speed Calculation
 def calculate_avg_speed(track_id):
     time_bg = (
         cross_yellow_line[track_id]["time"] - cross_orange_line[track_id]["time"]
@@ -71,55 +65,32 @@ def calculate_avg_speed(track_id):
     )
 
     speed_bg = round(
-        (distance_bg / (time_bg * VIDEO_FPS)) * (FACTOR_KM * LATENCY_FPS), 2
+        ((distance_bg * kmh_to_ms_const * pixel_to_meter_const * 0.5) / time_bg), 2
     )
     speed_gr = round(
-        (distance_gr / (time_gr * VIDEO_FPS)) * (FACTOR_KM * LATENCY_FPS), 2
+        ((distance_gr * kmh_to_ms_const * pixel_to_meter_const * 0.5) / time_gr), 2
     )
 
     return round((speed_bg + speed_gr) / 2, 2)
 
 
-# Load video
 cap = cv2.VideoCapture("./videos/day_sight_1.mp4")
 
-# Kích thước khung hình của video đầu vào
 frame_width = int(cap.get(3))
 frame_height = int(cap.get(4))
 
-# Mở VideoWriter với codec và tham số khác
 out = cv2.VideoWriter(
     "./output_videos/output_video.mp4", fourcc, 20.0, (frame_width, frame_height)
 )
 
-# Other setup
-vehicles = [2, 3]
 frame_skip_interval = 2
 frame_number = -1
-prev_time = datetime.now()
 mot_tracker = Sort()
 license_plate_counts = {}
 
 while True:
     frame_number += 1
     ret, frame = cap.read()
-
-    # Calculate FPS
-    current_time = datetime.now()
-    elapsed_time = (current_time - prev_time).total_seconds()
-    fps = 1 / elapsed_time
-    prev_time = current_time
-
-    # Display FPS on the frame
-    cv2.putText(
-        frame,
-        f"FPS: {fps:.2f}",
-        (10, 30),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        1.0,
-        (0, 255, 0),
-        2,
-    )
 
     height = frame.shape[0]
     width = frame.shape[1]
@@ -131,17 +102,15 @@ while True:
 
     zone = cv2.bitwise_and(frame, frame, mask=mask)
 
-    # Hiển thị vùng quan tâm
-    green_overlay = frame.copy()
-    cv2.fillPoly(green_overlay, pts, (0, 255, 0))  # Màu xanh lục
-    cv2.addWeighted(green_overlay, 0.2, frame, 0.8, 0, frame)  # Opacity 0.2
+    # green_overlay = frame.copy()
+    # cv2.fillPoly(green_overlay, pts, (0, 255, 0))
+    # cv2.addWeighted(green_overlay, 0.2, frame, 0.8, 0, frame)
 
-    # Vẽ các đường dùng để xác định tốc độ
-    cv2.line(frame, PASS_LINE[0], PASS_LINE[1], (255, 255, 255), 3)
-    cv2.line(frame, PREV_LINE[0], PREV_LINE[1], (255, 255, 255), 3)
-    cv2.line(frame, PINK_LINE[0], PINK_LINE[1], (255, 0, 255), 3)  # Đường màu hồng
-    cv2.line(frame, YELLOW_LINE[0], YELLOW_LINE[1], (0, 255, 255), 3)  # Đường màu vàng
-    cv2.line(frame, ORANGE_LINE[0], ORANGE_LINE[1], (0, 165, 255), 3)  # Đường màu cam
+    # cv2.line(frame, PASS_LINE[0], PASS_LINE[1], (255, 255, 255), 3)
+    # cv2.line(frame, PREV_LINE[0], PREV_LINE[1], (255, 255, 255), 3)
+    # cv2.line(frame, PINK_LINE[0], PINK_LINE[1], (255, 0, 255), 3)
+    # cv2.line(frame, YELLOW_LINE[0], YELLOW_LINE[1], (0, 255, 255), 3)
+    # cv2.line(frame, ORANGE_LINE[0], ORANGE_LINE[1], (0, 165, 255), 3)
 
     if not ret:
         print("No return....")
@@ -151,22 +120,21 @@ while True:
         continue
 
     frame_tensor = torch.from_numpy(zone).to("cuda")
-    detections = vehicle_detector(zone)[0].to("cpu")
+
+    # Xác định phương tiện
+    detections = vehicle_detector(zone, classes=[2, 3])[0].to("cpu")
     detections_ = []
 
     for detection in detections.boxes.data.tolist():
         x1, y1, x2, y2, score, class_id = detection
-        if int(class_id) in vehicles:
-            detections_.append([x1, y1, x2, y2, score, int(class_id)])
+        detections_.append([x1, y1, x2, y2, score, int(class_id)])
 
-    # Xác định bounding box lớn nhất của phương tiện đó
     detections_ = prioritize_outermost_largest(detections_)
 
     for box in detections_:
         x1, y1, x2, y2, _, class_id = box
         cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
 
-        # Xác định và hiển thị loại phương tiện lên trên bounding box
         class_name = "Unknown"
         if class_id == 2:
             class_name = "Car"
@@ -183,10 +151,8 @@ while True:
             2,
         )
 
-    # Theo dõi phương tiện
     track_ids = mot_tracker.update(np.asarray(detections_))
     track_ids = track_ids.astype(int)
-    print("Track_ids: ", track_ids)
 
     # Xác định tốc độ phương tiện
     for xmin, ymin, xmax, ymax, track_id in track_ids:
@@ -222,7 +188,7 @@ while True:
                 }
 
                 avg_speed = calculate_avg_speed(track_id)
-                avg_speeds[track_id] = f"{avg_speed} km/h"
+                avg_speeds[track_id] = f"{avg_speed}kmh"
 
         cross_line = (PREV_LINE[1][0] - PREV_LINE[0][0]) * (yc - PREV_LINE[0][1]) - (
             PREV_LINE[1][1] - PREV_LINE[0][1]
@@ -241,13 +207,13 @@ while True:
                 (int(xmin), int(ymin) - 50),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 1.0,
-                (0, 255, 0),
+                (255, 255, 0),
                 2,
             )
-            
 
     # Xác định biển số phương tiện
     license_plates = license_plate_detector(zone)[0].to("cpu")
+    exist_image = []
 
     for license_plate in license_plates.boxes.data.tolist():
         x1, y1, x2, y2, _, _ = license_plate
@@ -261,32 +227,18 @@ while True:
 
         # Tiền xử lí hình ảnh biển số
         license_plate_crop_gray = cv2.cvtColor(license_plate_crop, cv2.COLOR_BGR2GRAY)
-        _, license_plate_crop_thresh = cv2.threshold(
-            license_plate_crop_gray, 100, 255, cv2.THRESH_BINARY_INV
+
+        resized_license_plate_crop = cv2.resize(license_plate_crop, (300, 300))
+        cv2.imshow("Original License", resized_license_plate_crop)
+        resized_license_plate_crop_gray = cv2.resize(
+            license_plate_crop_gray, (300, 300)
         )
+        cv2.imshow("Pre-processed License", resized_license_plate_crop_gray)
 
-        cv2.imshow("origin_crop", license_plate_crop)
-        cv2.imshow("threshold_crop", license_plate_crop_thresh)
+        # Đọc biển số
+        license_plate_text, _ = read_license_plate(license_plate_crop_gray)
 
-        # Đọc biển số sử dụng EasyOCR
-        license_plate_text, _ = read_license_plate(license_plate_crop_thresh)
         if license_plate_text is not None:
-            license_plate_counts[license_plate_text] = (
-                license_plate_counts.get(license_plate_text, 0) + 1
-            )
-
-            current_occurrences = license_plate_counts[license_plate_text]
-
-            if current_occurrences > 1:
-                last_frame_filename = (
-                    f"result_images/{license_plate_text}_{current_occurrences - 1}.png"
-                )
-
-                if os.path.exists(last_frame_filename):
-                    os.remove(last_frame_filename)
-                    # print(f"Deleted old frame: {last_frame_filename}")
-
-            # Ghi kết quả đọc biển số lên trên bounding box
             cv2.putText(
                 frame,
                 license_plate_text,
@@ -297,20 +249,23 @@ while True:
                 2,
             )
 
-            # print("--->> License plate:", license_plate_text)
-            # print(
-            #     "      Number of occurrences:", license_plate_counts[license_plate_text]
-            # )
+            current_time = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+            license_filename = ""
 
-            frame_filename = f"result_images/{license_plate_text}_{license_plate_counts[license_plate_text]}.png"
-            cv2.imwrite(frame_filename, frame)
-            # print(f"Saved frame as {frame_filename}")
-
+            if car_id in avg_speeds:
+                license_filename = f"{car_id}-{avg_speeds[car_id]}-{license_plate_text}-{current_time}.png"
+            elif car_id != -1:
+                license_filename = (
+                    f"{car_id}-Not Detected-{license_plate_text}-{current_time}.png"
+                )
+            if license_filename not in exist_image:
+                cv2.imwrite(f"result_licenses/" + license_filename, license_plate_crop)
+                cv2.imwrite(f"result_frames/" + license_filename, frame)
+                exist_image.append(license_filename)
+                print(f"Deleted old frame: {license_filename}")
     out.write(frame)
 
-    # Show video và giảm độ phân giải
-    small_frame = cv2.resize(frame, (1067, 600))
-    cv2.imshow("Detected Video", small_frame)
+    cv2.imshow("Detected Video", frame)
 
     if cv2.waitKey(30) == 27:
         print("Esc...")
