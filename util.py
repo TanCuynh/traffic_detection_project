@@ -1,22 +1,22 @@
 import string
 import easyocr
 
-# Initialize the OCR reader
 reader = easyocr.Reader(["en"], gpu=True)
 
-# Mapping dictionaries for character conversion (Vietnamese license plates)
 dict_char_to_int = {
-    "O": "0",
+    "A": "4",
+    "B": "8",
     "D": "0",
-    "Q": "0",
+    "E": "6",
+    "G": "6",
+    "H": "4",
     "I": "1",
     "J": "3",
-    "A": "4",
-    "G": "6",
-    "S": "5",
-    "B": "8",
-    "T": "4",
     "L": "4",
+    "O": "0",
+    "Q": "0",
+    "S": "5",
+    "T": "4",
     "Z": "2",
 }
 
@@ -33,12 +33,8 @@ dict_int_to_char = {
 
 
 def filter_characters(text):
-    # List of characters you want to keep
-    allowed_characters = (
-        string.ascii_uppercase + string.digits
-    )  # Keep uppercase letters and digits
+    allowed_characters = string.ascii_uppercase + string.digits
 
-    # Filter and keep only the allowed characters
     filtered_text = "".join(char for char in text if char in allowed_characters)
 
     return filtered_text
@@ -79,10 +75,8 @@ def license_complies_format(text):
                 or text[7] in dict_char_to_int.keys()
             )
         ):
-            # print("T >>>>")
             return True
         else:
-            # print("F >>>>")
             return False
     elif len(text) == 9:
         if (
@@ -135,18 +129,19 @@ def format_license(text):
         mapping = {
             0: dict_char_to_int,
             1: dict_char_to_int,
+            2: dict_int_to_char,
+            3: dict_char_to_int,
             4: dict_char_to_int,
             5: dict_char_to_int,
             6: dict_char_to_int,
             7: dict_char_to_int,
-            2: dict_int_to_char,
-            3: dict_char_to_int,
         }
         for j in [0, 1, 2, 3, 4, 5, 6, 7]:
             if text[j] in mapping[j].keys():
                 license_plate_ += mapping[j][text[j]]
             else:
                 license_plate_ += text[j]
+        license_plate_ = license_plate_.replace("K", "X")
 
         return license_plate_
     else:
@@ -154,19 +149,20 @@ def format_license(text):
         mapping = {
             0: dict_char_to_int,
             1: dict_char_to_int,
+            2: dict_int_to_char,
+            3: dict_char_to_int,
             4: dict_char_to_int,
             5: dict_char_to_int,
             6: dict_char_to_int,
             7: dict_char_to_int,
             8: dict_char_to_int,
-            2: dict_int_to_char,
-            3: dict_char_to_int,
         }
         for j in [0, 1, 2, 3, 4, 5, 6, 7, 8]:
             if text[j] in mapping[j].keys():
                 license_plate_ += mapping[j][text[j]]
             else:
                 license_plate_ += text[j]
+        license_plate_ = license_plate_.replace("K", "X")
 
         return license_plate_
 
@@ -207,22 +203,20 @@ def get_car(license_plate, vehicle_track_ids):
 
 
 def prioritize_outermost_largest(detections):
-        result = []
+    result = []
 
-        # Sort detections by area in descending order
-        detections.sort(key=lambda x: (x[2] - x[0]) * (x[3] - x[1]), reverse=True)
+    detections.sort(key=lambda x: (x[2] - x[0]) * (x[3] - x[1]), reverse=True)
 
-        while detections:
-            current_detection = detections.pop(0)
-            x1, y1, x2, y2, _, _ = current_detection
+    while detections:
+        current_detection = detections.pop(0)
+        x1, y1, x2, y2, _, _ = current_detection
 
-            # Check if the current detection is not fully contained by any remaining detections
-            is_outermost = all(
-                x1 >= other_x2 or x2 <= other_x1 or y1 >= other_y2 or y2 <= other_y1
-                for (other_x1, other_y1, other_x2, other_y2, _, _) in detections
-            )
+        is_outermost = all(
+            x1 >= other_x2 or x2 <= other_x1 or y1 >= other_y2 or y2 <= other_y1
+            for (other_x1, other_y1, other_x2, other_y2, _, _) in detections
+        )
 
-            if is_outermost:
-                result.append(current_detection)
+        if is_outermost:
+            result.append(current_detection)
 
-        return result
+    return result
