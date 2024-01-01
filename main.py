@@ -80,7 +80,7 @@ frame_width = int(cap.get(3))
 frame_height = int(cap.get(4))
 
 out = cv2.VideoWriter(
-    "./output_videos/output_video.mp4", fourcc, 20.0, (frame_width, frame_height)
+    "./static/output_videos/output_video.mp4", fourcc, 20.0, (frame_width, frame_height)
 )
 
 frame_skip_interval = 2
@@ -259,8 +259,10 @@ while True:
                     f"{car_id}-Not Detected-{license_plate_text}-{current_time}.png"
                 )
             if license_filename not in exist_image:
-                cv2.imwrite(f"result_licenses/" + license_filename, license_plate_crop)
-                cv2.imwrite(f"result_frames/" + license_filename, frame)
+                cv2.imwrite(
+                    f"static/result_licenses/" + license_filename, license_plate_crop
+                )
+                cv2.imwrite(f"static/result_frames/" + license_filename, frame)
                 exist_image.append(license_filename)
                 print(f"Deleted old frame: {license_filename}")
     out.write(frame)
