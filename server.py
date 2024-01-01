@@ -236,22 +236,8 @@ def gen():
             # frame = cv2.imdecode(frame, flags=cv2.IMREAD_COLOR)
 
             # Crop ảnh biển số phương tiện
-            print("License_plate: ", license_plate)
-            print("Frame: ", frame)
 
-            # Decode the frame from bytes to a NumPy array
-            frame_np = cv2.imdecode(
-                np.frombuffer(frame, dtype=np.uint8), flags=cv2.IMREAD_COLOR
-            )
-
-            # Check if frame_np is not None
-            if frame_np is not None:
-                # Crop the license plate region
-                license_plate_crop = frame_np[int(y1) : int(y2), int(x1) : int(x2), :]
-            else:
-                continue
-
-            # license_plate_crop = frame[int(y1) : int(y2), int(x1) : int(x2), :]
+            license_plate_crop = frame[int(y1) : int(y2), int(x1) : int(x2), :]
 
             # Vẽ khung xung quanh biển số
             cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 0, 255), 2)
@@ -300,14 +286,21 @@ def gen():
                     # if frame is not None:
                     # retval, buffer = cv2.imencode(".png", frame)
                     # frame = buffer.tobytes()
-                    yield (
-                        b"--frame\r\n"
-                        b"Content-Type: image/jpeg\r\n\r\n"
-                        + open(f"static/result_frames/" + license_filename, "rb").read()
-                        + b"\r\n"
-                    )
+                    # yield (
+                    #     b"--frame\r\n"
+                    #     b"Content-Type: image/jpeg\r\n\r\n"
+                    #     + open(f"static/result_frames/" + license_filename, "rb").read()
+                    #     + b"\r\n"
+                    # )
                     exist_image.append(license_filename)
         # out.write(frame)
+        cv2.imwrite("demo.jpg", frame)
+        yield (
+            b"--frame\r\n"
+            b"Content-Type: image/jpeg\r\n\r\n"
+            + open("demo.jpg", "rb").read()
+            + b"\r\n"
+        )
 
         cv2.imshow("Detected Video", frame)
 
