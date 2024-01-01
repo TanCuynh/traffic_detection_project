@@ -231,7 +231,12 @@ def gen():
             x1, y1, x2, y2, _, _ = license_plate
             xcar1, ycar1, xcar2, ycar2, car_id = get_car(license_plate, track_ids)
 
+            # # Assuming 'frame' is a byte-like object or an image array
+            # frame = np.frombuffer(frame, dtype=np.uint8)
+            # frame = cv2.imdecode(frame, flags=cv2.IMREAD_COLOR)
+
             # Crop ảnh biển số phương tiện
+
             license_plate_crop = frame[int(y1) : int(y2), int(x1) : int(x2), :]
 
             # Vẽ khung xung quanh biển số
@@ -267,7 +272,7 @@ def gen():
                 license_filename = ""
 
                 if car_id in avg_speeds:
-                    license_filename = f"{car_id}-{avg_speeds[car_id]}-{license_plate_text}-{current_time}.png"
+                    license_filename = f"{car_id}-{avg_speeds[car_id]}-{license_plate_text}-{current_time}.jpeg"
                 elif car_id != -1:
                     license_filename = (
                         f"{car_id}-Not Detected-{license_plate_text}-{current_time}.png"
@@ -278,14 +283,24 @@ def gen():
                         license_plate_crop,
                     )
                     cv2.imwrite(f"static/result_frames/" + license_filename, frame)
-                    retval, buffer = cv2.imencode(".jpg", frame)
-                    frame = buffer.tobytes()
-                    yield (
-                        b"--frame\r\n"
-                        b"Content-Type: image/jpeg\r\n\r\n" + frame + b"\r\n"
-                    )
+                    # if frame is not None:
+                    # retval, buffer = cv2.imencode(".png", frame)
+                    # frame = buffer.tobytes()
+                    # yield (
+                    #     b"--frame\r\n"
+                    #     b"Content-Type: image/jpeg\r\n\r\n"
+                    #     + open(f"static/result_frames/" + license_filename, "rb").read()
+                    #     + b"\r\n"
+                    # )
                     exist_image.append(license_filename)
         # out.write(frame)
+        cv2.imwrite("demo.jpg", frame)
+        yield (
+            b"--frame\r\n"
+            b"Content-Type: image/jpeg\r\n\r\n"
+            + open("demo.jpg", "rb").read()
+            + b"\r\n"
+        )
 
         cv2.imshow("Detected Video", frame)
 
