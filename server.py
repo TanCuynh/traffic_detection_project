@@ -143,11 +143,12 @@ def gen():
 
         detections_ = prioritize_outermost_largest(detections_)
 
+        class_name = "Unknown"
+
         for box in detections_:
             x1, y1, x2, y2, _, class_id = box
             cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
 
-            class_name = "Unknown"
             if class_id == 2:
                 class_name = "Car"
             elif class_id == 3:
@@ -231,12 +232,7 @@ def gen():
             x1, y1, x2, y2, _, _ = license_plate
             xcar1, ycar1, xcar2, ycar2, car_id = get_car(license_plate, track_ids)
 
-            # # Assuming 'frame' is a byte-like object or an image array
-            # frame = np.frombuffer(frame, dtype=np.uint8)
-            # frame = cv2.imdecode(frame, flags=cv2.IMREAD_COLOR)
-
             # Crop ảnh biển số phương tiện
-
             license_plate_crop = frame[int(y1) : int(y2), int(x1) : int(x2), :]
 
             # Vẽ khung xung quanh biển số
@@ -247,12 +243,12 @@ def gen():
                 license_plate_crop, cv2.COLOR_BGR2GRAY
             )
 
-            resized_license_plate_crop = cv2.resize(license_plate_crop, (300, 300))
-            cv2.imshow("Original License", resized_license_plate_crop)
-            resized_license_plate_crop_gray = cv2.resize(
-                license_plate_crop_gray, (300, 300)
-            )
-            cv2.imshow("Pre-processed License", resized_license_plate_crop_gray)
+            # resized_license_plate_crop = cv2.resize(license_plate_crop, (300, 300))
+            # cv2.imshow("Original License", resized_license_plate_crop)
+            # resized_license_plate_crop_gray = cv2.resize(
+            #     license_plate_crop_gray, (300, 300)
+            # )
+            # cv2.imshow("Pre-processed License", resized_license_plate_crop_gray)
 
             # Đọc biển số
             license_plate_text, _ = read_license_plate(license_plate_crop_gray)
@@ -272,28 +268,24 @@ def gen():
                 license_filename = ""
 
                 if car_id in avg_speeds:
-                    license_filename = f"{car_id}-{avg_speeds[car_id]}-{license_plate_text}-{current_time}.jpeg"
+                    license_filename = f"{car_id}-{class_name}-{avg_speeds[car_id]}-{license_plate_text}.png"
                 elif car_id != -1:
                     license_filename = (
-                        f"{car_id}-Not Detected-{license_plate_text}-{current_time}.png"
+                        f"{car_id}-{class_name}-Not Detected-{license_plate_text}.png"
                     )
                 if license_filename not in exist_image:
                     cv2.imwrite(
-                        f"static/result_licenses/" + license_filename,
+                        f"static/result_licenses/{current_time}-" + license_filename,
                         license_plate_crop,
                     )
-                    cv2.imwrite(f"static/result_frames/" + license_filename, frame)
-                    # if frame is not None:
-                    # retval, buffer = cv2.imencode(".png", frame)
-                    # frame = buffer.tobytes()
-                    # yield (
-                    #     b"--frame\r\n"
-                    #     b"Content-Type: image/jpeg\r\n\r\n"
-                    #     + open(f"static/result_frames/" + license_filename, "rb").read()
-                    #     + b"\r\n"
-                    # )
+                    cv2.imwrite(
+                        f"static/result_frames/{current_time}-" + license_filename,
+                        frame,
+                    )
                     exist_image.append(license_filename)
+                    print(f"Deleted old frame: {license_filename}")
         # out.write(frame)
+
         cv2.imwrite("demo.jpg", frame)
         yield (
             b"--frame\r\n"
@@ -302,7 +294,7 @@ def gen():
             + b"\r\n"
         )
 
-        cv2.imshow("Detected Video", frame)
+        # cv2.imshow("Detected Video", frame)
 
         if cv2.waitKey(30) == 27:
             print("Esc...")

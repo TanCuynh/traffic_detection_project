@@ -131,11 +131,12 @@ while True:
 
     detections_ = prioritize_outermost_largest(detections_)
 
+    class_name = "Unknown"
+
     for box in detections_:
         x1, y1, x2, y2, _, class_id = box
         cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
 
-        class_name = "Unknown"
         if class_id == 2:
             class_name = "Car"
         elif class_id == 3:
@@ -188,7 +189,7 @@ while True:
                 }
 
                 avg_speed = calculate_avg_speed(track_id)
-                avg_speeds[track_id] = f"{avg_speed}kmh"
+                avg_speeds[track_id] = f"{avg_speed}"
 
         cross_line = (PREV_LINE[1][0] - PREV_LINE[0][0]) * (yc - PREV_LINE[0][1]) - (
             PREV_LINE[1][1] - PREV_LINE[0][1]
@@ -253,16 +254,19 @@ while True:
             license_filename = ""
 
             if car_id in avg_speeds:
-                license_filename = f"{car_id}-{avg_speeds[car_id]}-{license_plate_text}-{current_time}.png"
+                license_filename = f"{car_id}-{class_name}-{avg_speeds[car_id]}-{license_plate_text}.png"
             elif car_id != -1:
                 license_filename = (
-                    f"{car_id}-Not Detected-{license_plate_text}-{current_time}.png"
+                    f"{car_id}-{class_name}-Not Detected-{license_plate_text}.png"
                 )
             if license_filename not in exist_image:
                 cv2.imwrite(
-                    f"static/result_licenses/" + license_filename, license_plate_crop
+                    f"static/result_licenses/{current_time}-" + license_filename,
+                    license_plate_crop,
                 )
-                cv2.imwrite(f"static/result_frames/" + license_filename, frame)
+                cv2.imwrite(
+                    f"static/result_frames/{current_time}-" + license_filename, frame
+                )
                 exist_image.append(license_filename)
                 print(f"Deleted old frame: {license_filename}")
     out.write(frame)
