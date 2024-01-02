@@ -156,6 +156,7 @@ def gen(value):
             detections_.append([x1, y1, x2, y2, score, int(class_id)])
 
         detections_ = prioritize_outermost_largest(detections_)
+
         class_name = "Unknown"
 
         for box in detections_:
@@ -246,7 +247,6 @@ def gen(value):
             xcar1, ycar1, xcar2, ycar2, car_id = get_car(license_plate, track_ids)
 
             # Crop ảnh biển số phương tiện
-
             license_plate_crop = frame[int(y1) : int(y2), int(x1) : int(x2), :]
 
             # Vẽ khung xung quanh biển số
@@ -257,11 +257,11 @@ def gen(value):
                 license_plate_crop, cv2.COLOR_BGR2GRAY
             )
 
-            resized_license_plate_crop = cv2.resize(license_plate_crop, (300, 300))
+            # resized_license_plate_crop = cv2.resize(license_plate_crop, (300, 300))
             # cv2.imshow("Original License", resized_license_plate_crop)
-            resized_license_plate_crop_gray = cv2.resize(
-                license_plate_crop_gray, (300, 300)
-            )
+            # resized_license_plate_crop_gray = cv2.resize(
+            #     license_plate_crop_gray, (300, 300)
+            # )
             # cv2.imshow("Pre-processed License", resized_license_plate_crop_gray)
 
             # Đọc biển số
@@ -307,7 +307,9 @@ def gen(value):
                     cv2.imwrite(f"static/result_licenses/" + license_filename, license_plate_crop)
                     cv2.imwrite(f"static/result_frames/" + license_filename, frame)
                     exist_image.append(license_filename)
+                    print(f"Deleted old frame: {license_filename}")
         # out.write(frame)
+
         cv2.imwrite("demo.jpg", frame)
         yield (
             b"--frame\r\n"
