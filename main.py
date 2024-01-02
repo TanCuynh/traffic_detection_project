@@ -7,22 +7,22 @@ from sort.sort import Sort
 from util import get_car, read_license_plate, prioritize_outermost_largest
 from ultralytics import YOLO
 
-if torch.cuda.is_available():
-    print("GPU is available.")
-else:
-    print("GPU is not available. Using CPU.")
+# if torch.cuda.is_available():
+#     print("GPU is available.")
+# else:
+#     print("GPU is not available. Using CPU.")
 
-num_gpus = torch.cuda.device_count()
+# num_gpus = torch.cuda.device_count()
 
-torch.cuda.set_device(0)
+# torch.cuda.set_device(0)
 
-current_gpu = torch.cuda.current_device()
-print(f"Using GPU-{current_gpu}")
+# current_gpu = torch.cuda.current_device()
+# print(f"Using GPU-{current_gpu}")
 
 fourcc = cv2.VideoWriter_fourcc(*"H264")
 
-vehicle_detector = YOLO("./models/vehicle_detector.pt").to("cuda")
-license_plate_detector = YOLO("./models/license_plate_detector.pt").to("cuda")
+vehicle_detector = YOLO("./models/vehicle_detector.pt").to("cpu")
+license_plate_detector = YOLO("./models/license_plate_detector.pt").to("cpu")
 
 # Xác định biến và đường xác định tốc độ
 PINK_LINE = [(520, 600), (1920, 600)]
@@ -119,7 +119,7 @@ while True:
     if frame_number % frame_skip_interval != 0:
         continue
 
-    frame_tensor = torch.from_numpy(zone).to("cuda")
+    frame_tensor = torch.from_numpy(zone).to("cpu")
 
     # Xác định phương tiện
     detections = vehicle_detector(zone, classes=[2, 3])[0].to("cpu")

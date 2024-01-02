@@ -6,35 +6,58 @@ from datetime import datetime
 from sort.sort import Sort
 from util import get_car, read_license_plate, prioritize_outermost_largest
 from ultralytics import YOLO
-from flask import Flask, render_template, Response, request, send_from_directory
+from flask import Flask, render_template, Response, request, send_from_directory, jsonify
 from flask_cors import CORS, cross_origin
 
 app = Flask(__name__)
-CORS(app, resources={r"/": {"origins": ""}})
+CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
 
 
 @app.route("/reports/<path:path>")
 def send_report(path):
     return send_from_directory("static", path)
 
+# filename_received = ''
 
-def gen():
-    if torch.cuda.is_available():
-        print("GPU is available.")
-    else:
-        print("GPU is not available. Using CPU.")
+# @app.route('/received_address_video', methods=['POST'])
+# def handle_post():
+#     global filename_received
+#     data = request.get_json()
+#     value = data['value']
+#     filename_received = value
+#     print(f'Received value: {value}')
+#     return jsonify({'message': 'Success'}), 200
 
-    num_gpus = torch.cuda.device_count()
+stop_streaming = False
 
-    torch.cuda.set_device(0)
+@app.route("/clear_stream", methods=["POST"])
+def clear_stream():
+    global stop_streaming
+    print('--------------------------CLEAR------------------')
+    stop_streaming = True
+    return jsonify({'message': 'Streaming stopped successfully.'})
 
-    current_gpu = torch.cuda.current_device()
-    print(f"Using GPU-{current_gpu}")
+
+def gen(value):
+    global stop_streaming
+    stop_streaming = False 
+
+    # if torch.cuda.is_available():
+    #     print("GPU is available.")
+    # else:
+    #     print("GPU is not available. Using CPU.")
+
+    # num_gpus = torch.cuda.device_count()
+
+    # torch.cuda.set_device(0)
+
+    # current_gpu = torch.cuda.current_device()
+    # print(f"Using GPU-{current_gpu}")
 
     fourcc = cv2.VideoWriter_fourcc(*"H264")
 
-    vehicle_detector = YOLO("./models/vehicle_detector.pt").to("cuda")
-    license_plate_detector = YOLO("./models/license_plate_detector.pt").to("cuda")
+    vehicle_detector = YOLO("./models/vehicle_detector.pt").to("cpu")
+    license_plate_detector = YOLO("./models/license_plate_detector.pt").to("cpu")
 
     # Xác định biến và đường xác định tốc độ
     PINK_LINE = [(520, 600), (1920, 600)]
@@ -83,7 +106,8 @@ def gen():
 
         return round((speed_bg + speed_gr) / 2, 2)
 
-    cap = cv2.VideoCapture("./videos/day_sight_1.mp4")
+    # cap = cv2.VideoCapture("./videos/day_sight_1.mp4")
+    cap = cv2.VideoCapture('./videos/'+ 'day_sight_'+ str(value) + '.mp4')
 
     frame_width = int(cap.get(3))
     frame_height = int(cap.get(4))
@@ -114,16 +138,6 @@ def gen():
 
         zone = cv2.bitwise_and(frame, frame, mask=mask)
 
-        # green_overlay = frame.copy()
-        # cv2.fillPoly(green_overlay, pts, (0, 255, 0))
-        # cv2.addWeighted(green_overlay, 0.2, frame, 0.8, 0, frame)
-
-        # cv2.line(frame, PASS_LINE[0], PASS_LINE[1], (255, 255, 255), 3)
-        # cv2.line(frame, PREV_LINE[0], PREV_LINE[1], (255, 255, 255), 3)
-        # cv2.line(frame, PINK_LINE[0], PINK_LINE[1], (255, 0, 255), 3)
-        # cv2.line(frame, YELLOW_LINE[0], YELLOW_LINE[1], (0, 255, 255), 3)
-        # cv2.line(frame, ORANGE_LINE[0], ORANGE_LINE[1], (0, 165, 255), 3)
-
         if not ret:
             print("No return....")
             break
@@ -131,7 +145,7 @@ def gen():
         if frame_number % frame_skip_interval != 0:
             continue
 
-        frame_tensor = torch.from_numpy(zone).to("cuda")
+        frame_tensor = torch.from_numpy(zone).to("cpu")
 
         # Xác định phương tiện
         detections = vehicle_detector(zone, classes=[2, 3])[0].to("cpu")
@@ -142,12 +156,12 @@ def gen():
             detections_.append([x1, y1, x2, y2, score, int(class_id)])
 
         detections_ = prioritize_outermost_largest(detections_)
+        class_name = "Unknown"
 
         for box in detections_:
             x1, y1, x2, y2, _, class_id = box
             cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
 
-            class_name = "Unknown"
             if class_id == 2:
                 class_name = "Car"
             elif class_id == 3:
@@ -231,10 +245,6 @@ def gen():
             x1, y1, x2, y2, _, _ = license_plate
             xcar1, ycar1, xcar2, ycar2, car_id = get_car(license_plate, track_ids)
 
-            # # Assuming 'frame' is a byte-like object or an image array
-            # frame = np.frombuffer(frame, dtype=np.uint8)
-            # frame = cv2.imdecode(frame, flags=cv2.IMREAD_COLOR)
-
             # Crop ảnh biển số phương tiện
 
             license_plate_crop = frame[int(y1) : int(y2), int(x1) : int(x2), :]
@@ -248,11 +258,11 @@ def gen():
             )
 
             resized_license_plate_crop = cv2.resize(license_plate_crop, (300, 300))
-            cv2.imshow("Original License", resized_license_plate_crop)
+            # cv2.imshow("Original License", resized_license_plate_crop)
             resized_license_plate_crop_gray = cv2.resize(
                 license_plate_crop_gray, (300, 300)
             )
-            cv2.imshow("Pre-processed License", resized_license_plate_crop_gray)
+            # cv2.imshow("Pre-processed License", resized_license_plate_crop_gray)
 
             # Đọc biển số
             license_plate_text, _ = read_license_plate(license_plate_crop_gray)
@@ -271,27 +281,31 @@ def gen():
                 current_time = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
                 license_filename = ""
 
+                if value == 1:
+                    location = "Da Nang"
+                elif value == 2:
+                    location = "Ha Noi"
+                else:
+                    location = "Ho Chi Minh City"
+
                 if car_id in avg_speeds:
-                    license_filename = f"{car_id}-{avg_speeds[car_id]}-{license_plate_text}-{current_time}.jpeg"
+                    license_filename = f"{car_id}-{class_name}-{avg_speeds[car_id]}-{license_plate_text}-{location}-{current_time}.jpg"
                 elif car_id != -1:
                     license_filename = (
-                        f"{car_id}-Not Detected-{license_plate_text}-{current_time}.png"
-                    )
+                        f"{car_id}-{class_name}-Not Detected-{license_plate_text}-{location}-{current_time}.jpg"
+                    )      
+                import re
+
+                # Sanitize license_filename to remove any special characters
+                license_filename = re.sub(r'[^\w\-_\. ]', '_', license_filename)
+
+                # Ensure license_filename has a .jpg extension
+                if not license_filename.endswith('.jpg'):
+                    license_filename += '.jpg'
+
                 if license_filename not in exist_image:
-                    cv2.imwrite(
-                        f"static/result_licenses/" + license_filename,
-                        license_plate_crop,
-                    )
+                    cv2.imwrite(f"static/result_licenses/" + license_filename, license_plate_crop)
                     cv2.imwrite(f"static/result_frames/" + license_filename, frame)
-                    # if frame is not None:
-                    # retval, buffer = cv2.imencode(".png", frame)
-                    # frame = buffer.tobytes()
-                    # yield (
-                    #     b"--frame\r\n"
-                    #     b"Content-Type: image/jpeg\r\n\r\n"
-                    #     + open(f"static/result_frames/" + license_filename, "rb").read()
-                    #     + b"\r\n"
-                    # )
                     exist_image.append(license_filename)
         # out.write(frame)
         cv2.imwrite("demo.jpg", frame)
@@ -301,17 +315,42 @@ def gen():
             + open("demo.jpg", "rb").read()
             + b"\r\n"
         )
+        if stop_streaming:
+            break 
 
-        cv2.imshow("Detected Video", frame)
+        # cv2.imshow("Detected Video", frame)
 
         if cv2.waitKey(30) == 27:
             print("Esc...")
             break
 
+    
 
-@app.route("/video_feed", methods=["GET", "POST"])
-def video_feed():
-    return Response(gen(), mimetype="multipart/x-mixed-replace; boundary=frame")
+
+    # print(value)
+    # cap = cv2.VideoCapture('./videos/'+ 'day_sight_'+ str(value) + '.mp4')
+
+    # while True:
+    #     ret, frame = cap.read()
+
+    #     if not ret:
+    #         print("Error: failed to capture image")
+    #         break
+
+    #     cv2.imwrite('demo.jpg', frame)
+    #     yield (b'--frame\r\n'
+    #         b'Content-Type: image/jpeg\r\n\r\n' + open('demo.jpg', 'rb').read() + b'\r\n')
+        
+             
+
+    
+
+
+@app.route("/<int:value>/video_feed", methods=["GET", "POST"])
+def video_feed(value):
+    return Response(gen(value), mimetype="multipart/x-mixed-replace; boundary=frame")
+
+
 
 
 if __name__ == "__main__":
